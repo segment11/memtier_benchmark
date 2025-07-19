@@ -26,6 +26,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <math.h>
+#include <pwd.h>
+#include <sys/types.h>
 
 #ifdef HAVE_ASSERT_H
 #include <assert.h>
@@ -179,7 +181,9 @@ object_generator::object_generator(const object_generator& copy) :
     m_data_size_pattern(copy.m_data_size_pattern),
     m_random_data(copy.m_random_data),
     m_faker_text_data(copy.m_faker_text_data),
+    m_faker_text_lines(copy.m_faker_text_lines),
     m_faker_json_data(copy.m_faker_json_data),
+    m_faker_json_lines(copy.m_faker_json_lines),
     m_expiry_min(copy.m_expiry_min),
     m_expiry_max(copy.m_expiry_max),
     m_key_prefix(copy.m_key_prefix),
@@ -324,6 +328,22 @@ void object_generator::alloc_value_buffer(const char* copy_from)
 void object_generator::set_random_data(bool random_data)
 {
     m_random_data = random_data;
+}
+
+void object_generator::set_faker_text_data(bool faker_text_data)
+{
+    m_faker_text_data = faker_text_data;
+    if (faker_text_data) {
+        load_faker_data();
+    }
+}
+
+void object_generator::set_faker_json_data(bool faker_json_data)
+{
+    m_faker_json_data = faker_json_data;
+    if (faker_json_data) {
+        load_faker_data();
+    }
 }
 
 void object_generator::set_data_size_fixed(unsigned int size)
@@ -522,7 +542,7 @@ const char* object_generator::get_value(unsigned long long key_index, unsigned i
     }
     // Handle faker text data
     if (m_faker_text_data && !m_faker_text_lines.empty()) {
-        unsigned long long line_index = key_index % m_faker_text_line_count;
+        unsigned long long line_index = key_index % m_faker_text_lines.size();
         const std::string &line = m_faker_text_lines[line_index];
         *len = line.length();
         return line.c_str();
@@ -530,7 +550,7 @@ const char* object_generator::get_value(unsigned long long key_index, unsigned i
 
     // Handle faker json data
     if (m_faker_json_data && !m_faker_json_lines.empty()) {
-        unsigned long long line_index = key_index % m_faker_json_line_count;
+        unsigned long long line_index = key_index % m_faker_json_lines.size();
         const std::string &line = m_faker_json_lines[line_index];
         *len = line.length();
         return line.c_str();
@@ -723,4 +743,99 @@ unsigned int import_object_generator::get_expiry() {
     }
 
     return expiry;
+}
+
+void object_generator::load_faker_data()
+{
+    // Get user home directory
+    const char* home_dir = getenv("HOME");
+    if (!home_dir) {
+        struct passwd* pw = getpwuid(getuid());
+        if (pw) {
+            home_dir = pw->pw_dir;
+        }
+    }
+
+    if (!home_dir) {
+        fprintf(stderr, "Warning: Could not determine user home directory for faker data files\n");
+        return;
+    }
+
+    // Load faker text data if enabled
+    if (m_faker_text_data) {
+        char text_file_path[1024];
+        snprintf(text_file_path, sizeof(text_file_path), "%s/faker-value-as-text.txt", home_dir);
+
+        FILE* text_file = fopen(text_file_path, "r");
+        if (text_file) {
+            m_faker_text_lines.clear();
+            char line[4096];
+            while (fgets(line, sizeof(line), text_file)) {
+                // Remove trailing newline
+                size_t len = strlen(line);
+                if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                    line[len-1] = '\0';
+                    len--;
+                }
+                if (len > 0 && line[len-1] == '\r') {
+                    line[len-1] = '\0';
+                }
+
+                if (len > 0) {
+                    m_faker_text_lines.push_back(std::string(line));
+                }
+            }
+            fclose(text_file);
+            m_faker_text_line_count = m_faker_text_lines.size();
+            printf("Loaded %llu lines from faker text file: %s\n", m_faker_text_line_count, text_file_path);
+            if (m_faker_text_line_count > 0) {
+                printf("Top 10 lines: \n");
+                for (int i = 0; i < 10; ++i) {
+                    std::string line_read = m_faker_text_lines[i];
+                    printf("  %s\n", line_read.c_str());
+                }
+            }
+        } else {
+            fprintf(stderr, "Warning: Could not open faker text file: %s\n", text_file_path);
+        }
+    }
+
+    // Load faker JSON data if enabled
+    if (m_faker_json_data) {
+        char json_file_path[1024];
+        snprintf(json_file_path, sizeof(json_file_path), "%s/faker-value-as-json.txt", home_dir);
+
+        FILE* json_file = fopen(json_file_path, "r");
+        if (json_file) {
+            m_faker_json_lines.clear();
+            char line[4096];
+            while (fgets(line, sizeof(line), json_file)) {
+                // Remove trailing newline
+                size_t len = strlen(line);
+                if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                    line[len-1] = '\0';
+                    len--;
+                }
+                if (len > 0 && line[len-1] == '\r') {
+                    line[len-1] = '\0';
+                }
+
+                if (len > 0) {
+                    m_faker_json_lines.push_back(std::string(line));
+                }
+            }
+            fclose(json_file);
+            m_faker_json_line_count = m_faker_json_lines.size();
+            printf("Loaded %llu lines from faker JSON file: %s\n", m_faker_json_line_count, json_file_path);
+            if (m_faker_json_line_count > 0) {
+                printf("Top 10 lines: \n");
+                for (int i = 0; i < 10; ++i) {
+                    std::string line_read = m_faker_json_lines[i];
+                    printf("  %s\n", line_read.c_str());
+                }
+            }
+        } else {
+            fprintf(stderr, "Warning: Could not open faker JSON file: %s\n", json_file_path);
+        }
+    }
 }
