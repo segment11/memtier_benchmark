@@ -20,6 +20,7 @@
 #define _OBJ_GEN_H
 
 #include <vector>
+#include <string>
 #include "file_io.h"
 
 struct random_data;
@@ -72,6 +73,8 @@ protected:
     } m_data_size;
     const char *m_data_size_pattern;
     bool m_random_data;
+    bool m_faker_text_data;
+    bool m_faker_json_data;
     unsigned int m_expiry_min;
     unsigned int m_expiry_max;
     const char *m_key_prefix;
@@ -104,9 +107,18 @@ protected:
     unsigned int m_value_buffer_size;
     unsigned int m_value_buffer_mutation_pos;
 
+    // faker data file handling
+    FILE *m_faker_text_fd;
+    FILE *m_faker_json_fd;
+    std::vector<std::string> m_faker_text_lines;
+    std::vector<std::string> m_faker_json_lines;
+    unsigned long long m_faker_text_line_count;
+    unsigned long long m_faker_json_line_count;
+
     void alloc_value_buffer(void);
     void alloc_value_buffer(const char* copy_from);
     void random_init(void);
+    void load_faker_data(void);
 public:
     object_generator(size_t n_key_iterators = OBJECT_GENERATOR_KEY_ITERATORS);
     object_generator(const object_generator& copy);
@@ -118,6 +130,8 @@ public:
     unsigned long long zipf_distribution();
 
     void set_random_data(bool random_data);
+    void set_faker_text_data(bool faker_text_data);
+    void set_faker_json_data(bool faker_json_data);
     void set_data_size_fixed(unsigned int size);
     void set_data_size_range(unsigned int size_min, unsigned int size_max);
     void set_data_size_list(config_weight_list* data_size_list);

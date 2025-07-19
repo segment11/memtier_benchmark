@@ -143,6 +143,8 @@ object_generator::object_generator(size_t n_key_iterators/*= OBJECT_GENERATOR_KE
     m_data_size_type(data_size_unknown),
     m_data_size_pattern(NULL),
     m_random_data(false),
+    m_faker_text_data(false),
+    m_faker_json_data(false),
     m_expiry_min(0),
     m_expiry_max(0),
     m_key_prefix(NULL),
@@ -161,8 +163,11 @@ object_generator::object_generator(size_t n_key_iterators/*= OBJECT_GENERATOR_KE
     m_value_buffer(NULL),
     m_random_fd(-1),
     m_value_buffer_size(0),
-    m_value_buffer_mutation_pos(0)
-{
+    m_value_buffer_mutation_pos(0),
+    m_faker_text_fd(NULL),
+    m_faker_json_fd(NULL),
+    m_faker_text_line_count(0),
+    m_faker_json_line_count(0) {
     m_next_key.resize(n_key_iterators, 0);
 
     m_data_size.size_list = NULL;
@@ -173,6 +178,8 @@ object_generator::object_generator(const object_generator& copy) :
     m_data_size(copy.m_data_size),
     m_data_size_pattern(copy.m_data_size_pattern),
     m_random_data(copy.m_random_data),
+    m_faker_text_data(copy.m_faker_text_data),
+    m_faker_json_data(copy.m_faker_json_data),
     m_expiry_min(copy.m_expiry_min),
     m_expiry_max(copy.m_expiry_max),
     m_key_prefix(copy.m_key_prefix),
@@ -213,6 +220,14 @@ object_generator::~object_generator()
     if (m_random_fd != -1) {
         close(m_random_fd);
         m_random_fd = -1;
+    }
+    if (m_faker_text_fd != NULL) {
+        fclose(m_faker_text_fd);
+        m_faker_text_fd = NULL;
+    }
+    if (m_faker_json_fd != NULL) {
+        fclose(m_faker_json_fd);
+        m_faker_json_fd = NULL;
     }
 }
 
@@ -496,6 +511,31 @@ const char* object_generator::get_key_prefix() {
 }
 
 const char* object_generator::get_value(unsigned long long key_index, unsigned int *len) {
+    if (key_index % 10000 == 0) {
+        printf(
+            "get value, key index: %lld, m_faker_text_data: %s, lines size: %lu, m_faker_json_data: %s, lines size: %lu\n",
+            key_index,
+            m_faker_text_data ? "true" : "false",
+            m_faker_text_lines.size(),
+            m_faker_json_data ? "true" : "false",
+            m_faker_json_lines.size());
+    }
+    // Handle faker text data
+    if (m_faker_text_data && !m_faker_text_lines.empty()) {
+        unsigned long long line_index = key_index % m_faker_text_line_count;
+        const std::string &line = m_faker_text_lines[line_index];
+        *len = line.length();
+        return line.c_str();
+    }
+
+    // Handle faker json data
+    if (m_faker_json_data && !m_faker_json_lines.empty()) {
+        unsigned long long line_index = key_index % m_faker_json_line_count;
+        const std::string &line = m_faker_json_lines[line_index];
+        *len = line.length();
+        return line.c_str();
+    }
+
     // compute size
     unsigned int new_size = 0;
     if (m_data_size_type == data_size_fixed) {

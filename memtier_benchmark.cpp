@@ -137,6 +137,8 @@ static void config_print(FILE *file, struct benchmark_config *cfg)
         "data_size = %u\n"
         "data_offset = %u\n"
         "random_data = %s\n"
+        "faker_text_data = %s\n"
+        "faker_json_data = %s\n"
         "data_size_range = %u-%u\n"
         "data_size_list = %s\n"
         "data_size_pattern = %s\n"
@@ -188,6 +190,8 @@ static void config_print(FILE *file, struct benchmark_config *cfg)
         cfg->data_size,
         cfg->data_offset,
         cfg->random_data ? "yes" : "no",
+        cfg->faker_text_data ? "yes" : "no",
+        cfg->faker_json_data ? "yes" : "no",
         cfg->data_size_range.min, cfg->data_size_range.max,
         cfg->data_size_list.print(tmpbuf, sizeof(tmpbuf)-1),
         cfg->data_size_pattern,
@@ -247,6 +251,8 @@ static void config_print_to_json(json_handler * jsonhandler, struct benchmark_co
     jsonhandler->write_obj("data_size"         ,"%u",          	cfg->data_size);
     jsonhandler->write_obj("data_offset"       ,"%u",          	cfg->data_offset);
     jsonhandler->write_obj("random_data"       ,"\"%s\"",      	cfg->random_data ? "true" : "false");
+    jsonhandler->write_obj("faker_text_data"   ,"\"%s\"",      	cfg->faker_text_data ? "true" : "false");
+    jsonhandler->write_obj("faker_json_data"   ,"\"%s\"",      	cfg->faker_json_data ? "true" : "false");
     jsonhandler->write_obj("data_size_range"   ,"\"%u:%u\"",	cfg->data_size_range.min, cfg->data_size_range.max);
     jsonhandler->write_obj("data_size_list"    ,"\"%s\"",   	cfg->data_size_list.print(tmpbuf, sizeof(tmpbuf)-1));
     jsonhandler->write_obj("data_size_pattern" ,"\"%s\"", 		cfg->data_size_pattern);
@@ -305,6 +311,10 @@ static void config_init_defaults(struct benchmark_config *cfg)
         cfg->key_pattern = "R:R";
     if (!cfg->data_size_pattern)
         cfg->data_size_pattern = "R";
+    if (!cfg->faker_text_data)
+        cfg->faker_text_data = false;
+    if (!cfg->faker_json_data)
+        cfg->faker_json_data = false;
     if (cfg->requests == (unsigned long long)-1) {
         cfg->requests = cfg->key_maximum - cfg->key_minimum;
         if (strcmp(cfg->key_pattern, "P:P")==0)
@@ -395,6 +405,8 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
         o_data_size_pattern,
         o_data_offset,
         o_expiry_range,
+        o_faker_text_data,
+        o_faker_json_data,
         o_data_import,
         o_data_verify,
         o_verify_only,
@@ -474,6 +486,8 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
         { "data-size",                  1, 0, 'd' },
         { "data-offset",                1, 0, o_data_offset },
         { "random-data",                0, 0, 'R' },
+        { "faker-text-data",            0, 0, o_faker_text_data },
+        { "faker-json-data",            0, 0, o_faker_json_data },
         { "data-size-range",            1, 0, o_data_size_range },
         { "data-size-list",             1, 0, o_data_size_list },
         { "data-size-pattern",          1, 0, o_data_size_pattern },
@@ -675,42 +689,11 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
                 case 'R':
                     cfg->random_data = true;
                     break;
-                case o_data_offset:
-                    endptr = NULL;
-                    cfg->data_offset = (unsigned int) strtoul(optarg, &endptr, 10);
-                    if (!endptr || *endptr != '\0') {
-                        fprintf(stderr, "error: data-offset must be greater than or equal to zero.\n");
-                        return -1;
-                    }
+                case o_faker_text_data:
+                    cfg->faker_text_data = true;
                     break;
-                case o_data_size_range:
-                    cfg->data_size_range = config_range(optarg);
-                    if (!cfg->data_size_range.is_defined() || cfg->data_size_range.min < 1) {
-                        fprintf(stderr, "error: data-size-range must be expressed as [1-n]-[1-n].\n");
-                        return -1;
-                    }
-                    break;
-                case o_data_size_list:
-                    cfg->data_size_list = config_weight_list(optarg);
-                    if (!cfg->data_size_list.is_defined()) {
-                        fprintf(stderr, "error: data-size-list must be expressed as [size1:weight1],...[sizeN:weightN].\n");
-                        return -1;
-                    }
-                    break;
-                case o_expiry_range:
-                    cfg->expiry_range = config_range(optarg);
-                    if (!cfg->expiry_range.is_defined()) {
-                        fprintf(stderr, "error: expiry-range must be expressed as [0-n]-[1-n].\n");
-                        return -1;
-                    }
-                    break;
-                case o_data_size_pattern:
-                    cfg->data_size_pattern = optarg;
-                    if (strlen(cfg->data_size_pattern) != 1 ||
-                        (cfg->data_size_pattern[0] != 'R' && cfg->data_size_pattern[0] != 'S')) {
-                            fprintf(stderr, "error: data-size-pattern must be either R or S.\n");
-                            return -1;
-                    }
+                case o_faker_json_data:
+                    cfg->faker_json_data = true;
                     break;
                 case o_data_import:
                     cfg->data_import = optarg;
@@ -947,6 +930,43 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
                     break;
                 }
 #endif
+                case o_data_offset:
+                    endptr = NULL;
+                    cfg->data_offset = (unsigned int) strtoul(optarg, &endptr, 10);
+                    if (!endptr || *endptr != '\0') {
+                        fprintf(stderr, "error: data-offset must be greater than or equal to zero.\n");
+                        return -1;
+                    }
+                    break;
+                case o_data_size_range:
+                    cfg->data_size_range = config_range(optarg);
+                    if (!cfg->data_size_range.is_defined() || cfg->data_size_range.min < 1) {
+                        fprintf(stderr, "error: data-size-range must be expressed as [1-n]-[1-n].\n");
+                        return -1;
+                    }
+                    break;
+                case o_data_size_list:
+                    cfg->data_size_list = config_weight_list(optarg);
+                    if (!cfg->data_size_list.is_defined()) {
+                        fprintf(stderr, "error: data-size-list must be expressed as [size1:weight1],...[sizeN:weightN].\n");
+                        return -1;
+                    }
+                    break;
+                case o_expiry_range:
+                    cfg->expiry_range = config_range(optarg);
+                    if (!cfg->expiry_range.is_defined()) {
+                        fprintf(stderr, "error: expiry-range must be expressed as [0-n]-[1-n].\n");
+                        return -1;
+                    }
+                    break;
+                case o_data_size_pattern:
+                    cfg->data_size_pattern = optarg;
+                    if (strlen(cfg->data_size_pattern) != 1 ||
+                        (cfg->data_size_pattern[0] != 'R' && cfg->data_size_pattern[0] != 'S')) {
+                            fprintf(stderr, "error: data-size-pattern must be either R or S.\n");
+                            return -1;
+                    }
+                    break;
             default:
                     return -1;
                     break;
@@ -1038,6 +1058,8 @@ void usage() {
             "      --data-offset=OFFSET       Actual size of value will be data-size + data-offset\n"
             "                                 Will use SETRANGE / GETRANGE (default: 0)\n"
             "  -R  --random-data              Indicate that data should be randomized\n"
+            "      --faker-text-data          Use faker text data from ~/faker-value-as-text.txt\n"
+            "      --faker-json-data          Use faker JSON data from ~/faker-value-as-json.txt\n"
             "      --data-size-range=RANGE    Use random-sized items in the specified range (min-max)\n"
             "      --data-size-list=LIST      Use sizes from weight list (size1:weight1,..sizeN:weightN)\n"
             "      --data-size-pattern=R|S    Use together with data-size-range\n"
@@ -1576,6 +1598,8 @@ int main(int argc, char *argv[])
     }
     if (!cfg.data_import) {
         obj_gen->set_random_data(cfg.random_data);
+        obj_gen->set_faker_text_data(cfg.faker_text_data);
+        obj_gen->set_faker_json_data(cfg.faker_json_data);
     }
 
     if (cfg.select_db > 0 && !is_redis_protocol(cfg.protocol)) {
