@@ -78,6 +78,7 @@ struct benchmark_config {
     bool random_data;
     bool faker_text_data;
     bool faker_json_data;
+    const char *faker_values_file_dir;
     struct config_range data_size_range;
     config_weight_list data_size_list;
     const char *data_size_pattern;

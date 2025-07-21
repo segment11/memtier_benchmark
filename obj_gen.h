@@ -114,6 +114,7 @@ protected:
     std::vector<std::string> m_faker_json_lines;
     unsigned long long m_faker_text_line_count;
     unsigned long long m_faker_json_line_count;
+    const char *m_faker_values_file_dir;
 
     void alloc_value_buffer(void);
     void alloc_value_buffer(const char* copy_from);
@@ -132,6 +133,7 @@ public:
     void set_random_data(bool random_data);
     void set_faker_text_data(bool faker_text_data);
     void set_faker_json_data(bool faker_json_data);
+    void set_faker_values_file_dir(const char *faker_values_file_dir);
     void set_data_size_fixed(unsigned int size);
     void set_data_size_range(unsigned int size_min, unsigned int size_max);
     void set_data_size_list(config_weight_list* data_size_list);

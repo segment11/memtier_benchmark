@@ -169,7 +169,9 @@ object_generator::object_generator(size_t n_key_iterators/*= OBJECT_GENERATOR_KE
     m_faker_text_fd(NULL),
     m_faker_json_fd(NULL),
     m_faker_text_line_count(0),
-    m_faker_json_line_count(0) {
+    m_faker_json_line_count(0),
+    m_faker_values_file_dir(NULL)
+{
     m_next_key.resize(n_key_iterators, 0);
 
     m_data_size.size_list = NULL;
@@ -184,6 +186,7 @@ object_generator::object_generator(const object_generator& copy) :
     m_faker_text_lines(copy.m_faker_text_lines),
     m_faker_json_data(copy.m_faker_json_data),
     m_faker_json_lines(copy.m_faker_json_lines),
+    m_faker_values_file_dir(copy.m_faker_values_file_dir),
     m_expiry_min(copy.m_expiry_min),
     m_expiry_max(copy.m_expiry_max),
     m_key_prefix(copy.m_key_prefix),
@@ -344,6 +347,11 @@ void object_generator::set_faker_json_data(bool faker_json_data)
     if (faker_json_data) {
         load_faker_data();
     }
+}
+
+void object_generator::set_faker_values_file_dir(const char *faker_values_file_dir)
+{
+    m_faker_values_file_dir = faker_values_file_dir;
 }
 
 void object_generator::set_data_size_fixed(unsigned int size)
@@ -747,24 +755,28 @@ unsigned int import_object_generator::get_expiry() {
 
 void object_generator::load_faker_data()
 {
-    // Get user home directory
-    const char* home_dir = getenv("HOME");
-    if (!home_dir) {
-        struct passwd* pw = getpwuid(getuid());
-        if (pw) {
-            home_dir = pw->pw_dir;
+    // Determine the directory to use for faker data files
+    const char* data_dir = m_faker_values_file_dir;
+    if (!data_dir) {
+        // Fall back to user home directory if no custom directory is specified
+        data_dir = getenv("HOME");
+        if (!data_dir) {
+            struct passwd* pw = getpwuid(getuid());
+            if (pw) {
+                data_dir = pw->pw_dir;
+            }
         }
     }
 
-    if (!home_dir) {
-        fprintf(stderr, "Warning: Could not determine user home directory for faker data files\n");
+    if (!data_dir) {
+        fprintf(stderr, "Warning: Could not determine directory for faker data files\n");
         return;
     }
 
     // Load faker text data if enabled
     if (m_faker_text_data) {
         char text_file_path[1024];
-        snprintf(text_file_path, sizeof(text_file_path), "%s/faker-value-as-text.txt", home_dir);
+        snprintf(text_file_path, sizeof(text_file_path), "%s/faker-value-as-text.txt", data_dir);
 
         FILE* text_file = fopen(text_file_path, "r");
         if (text_file) {
@@ -803,7 +815,7 @@ void object_generator::load_faker_data()
     // Load faker JSON data if enabled
     if (m_faker_json_data) {
         char json_file_path[1024];
-        snprintf(json_file_path, sizeof(json_file_path), "%s/faker-value-as-json.txt", home_dir);
+        snprintf(json_file_path, sizeof(json_file_path), "%s/faker-value-as-json.txt", data_dir);
 
         FILE* json_file = fopen(json_file_path, "r");
         if (json_file) {

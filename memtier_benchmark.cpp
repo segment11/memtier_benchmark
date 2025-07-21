@@ -139,6 +139,7 @@ static void config_print(FILE *file, struct benchmark_config *cfg)
         "random_data = %s\n"
         "faker_text_data = %s\n"
         "faker_json_data = %s\n"
+        "faker_values_file_dir = %s\n"
         "data_size_range = %u-%u\n"
         "data_size_list = %s\n"
         "data_size_pattern = %s\n"
@@ -192,6 +193,7 @@ static void config_print(FILE *file, struct benchmark_config *cfg)
         cfg->random_data ? "yes" : "no",
         cfg->faker_text_data ? "yes" : "no",
         cfg->faker_json_data ? "yes" : "no",
+        cfg->faker_values_file_dir ? cfg->faker_values_file_dir : "NULL",
         cfg->data_size_range.min, cfg->data_size_range.max,
         cfg->data_size_list.print(tmpbuf, sizeof(tmpbuf)-1),
         cfg->data_size_pattern,
@@ -253,6 +255,7 @@ static void config_print_to_json(json_handler * jsonhandler, struct benchmark_co
     jsonhandler->write_obj("random_data"       ,"\"%s\"",      	cfg->random_data ? "true" : "false");
     jsonhandler->write_obj("faker_text_data"   ,"\"%s\"",      	cfg->faker_text_data ? "true" : "false");
     jsonhandler->write_obj("faker_json_data"   ,"\"%s\"",      	cfg->faker_json_data ? "true" : "false");
+    jsonhandler->write_obj("faker_values_file_dir"   ,"\"%s\"", cfg->faker_values_file_dir ? cfg->faker_values_file_dir : "NULL");
     jsonhandler->write_obj("data_size_range"   ,"\"%u:%u\"",	cfg->data_size_range.min, cfg->data_size_range.max);
     jsonhandler->write_obj("data_size_list"    ,"\"%s\"",   	cfg->data_size_list.print(tmpbuf, sizeof(tmpbuf)-1));
     jsonhandler->write_obj("data_size_pattern" ,"\"%s\"", 		cfg->data_size_pattern);
@@ -315,6 +318,8 @@ static void config_init_defaults(struct benchmark_config *cfg)
         cfg->faker_text_data = false;
     if (!cfg->faker_json_data)
         cfg->faker_json_data = false;
+    if (!cfg->faker_values_file_dir)
+        cfg->faker_values_file_dir = NULL;
     if (cfg->requests == (unsigned long long)-1) {
         cfg->requests = cfg->key_maximum - cfg->key_minimum;
         if (strcmp(cfg->key_pattern, "P:P")==0)
@@ -407,6 +412,7 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
         o_expiry_range,
         o_faker_text_data,
         o_faker_json_data,
+        o_faker_values_file_dir,
         o_data_import,
         o_data_verify,
         o_verify_only,
@@ -488,6 +494,7 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
         { "random-data",                0, 0, 'R' },
         { "faker-text-data",            0, 0, o_faker_text_data },
         { "faker-json-data",            0, 0, o_faker_json_data },
+        { "faker-values-file-dir",      1, 0, o_faker_values_file_dir },
         { "data-size-range",            1, 0, o_data_size_range },
         { "data-size-list",             1, 0, o_data_size_list },
         { "data-size-pattern",          1, 0, o_data_size_pattern },
@@ -538,6 +545,7 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
                     puts("This is free software.  You may redistribute copies of it under the terms of");
                     puts("the GNU General Public License <http://www.gnu.org/licenses/gpl.html>.");
                     puts("There is NO WARRANTY, to the extent permitted by law.");
+                    puts("Updated by Kerry and add faker values.");
                     exit(0);
                 case 's':
                 case 'h':
@@ -694,6 +702,9 @@ static int config_parse_args(int argc, char *argv[], struct benchmark_config *cf
                     break;
                 case o_faker_json_data:
                     cfg->faker_json_data = true;
+                    break;
+                case o_faker_values_file_dir:
+                    cfg->faker_values_file_dir = optarg;
                     break;
                 case o_data_import:
                     cfg->data_import = optarg;
@@ -1060,6 +1071,7 @@ void usage() {
             "  -R  --random-data              Indicate that data should be randomized\n"
             "      --faker-text-data          Use faker text data from ~/faker-value-as-text.txt\n"
             "      --faker-json-data          Use faker JSON data from ~/faker-value-as-json.txt\n"
+            "      --faker-values-file-dir    Use faker values file dir instead of user home ~, eg: --faker-values-file-dir=/home/kerry/faker-values-d100\n"
             "      --data-size-range=RANGE    Use random-sized items in the specified range (min-max)\n"
             "      --data-size-list=LIST      Use sizes from weight list (size1:weight1,..sizeN:weightN)\n"
             "      --data-size-pattern=R|S    Use together with data-size-range\n"
@@ -1598,6 +1610,9 @@ int main(int argc, char *argv[])
     }
     if (!cfg.data_import) {
         obj_gen->set_random_data(cfg.random_data);
+        if (cfg.faker_values_file_dir) {
+            obj_gen->set_faker_values_file_dir(cfg.faker_values_file_dir);
+        }
         obj_gen->set_faker_text_data(cfg.faker_text_data);
         obj_gen->set_faker_json_data(cfg.faker_json_data);
     }
