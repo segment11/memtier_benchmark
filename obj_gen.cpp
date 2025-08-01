@@ -539,7 +539,7 @@ const char* object_generator::get_key_prefix() {
 }
 
 const char* object_generator::get_value(unsigned long long key_index, unsigned int *len) {
-    if (key_index % 10000 == 0) {
+    if (key_index % 1000000 == 0) {
         printf(
             "get value, key index: %lld, m_faker_text_data: %s, lines size: %lu, m_faker_json_data: %s, lines size: %lu\n",
             key_index,
